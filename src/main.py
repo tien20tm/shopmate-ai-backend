@@ -9,6 +9,9 @@ from src.config import settings
 from src.database import get_db, engine
 from src.orders.router import order_router
 
+from src.orders.router import order_router
+from src.products.router import router as products_router
+from src.chat.router import router as chat_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -29,8 +32,11 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
+app.include_router(chat_router)
 
 app.include_router(order_router)
+app.include_router(order_router)
+app.include_router(products_router)
 
 
 @app.get("/health", tags=["Health"])
