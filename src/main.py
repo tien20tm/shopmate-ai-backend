@@ -1,25 +1,38 @@
-from orders.router import order_router
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import settings
 from src.database import get_db, engine
+from src.orders.router import order_router
 
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    await engine.dispose()
+
+
+app = FastAPI(
+    title="ShopMate AI Backend",
+    version="0.1.0",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
+
 app.include_router(order_router)
 
-@app.get("/health/db")
-async def database_health(
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(text("SELECT 1"))
-    return {
-        "status": "healthy",
-        "database": "postgresql",
-        "result": result.scalar(),
-    }
 
-@app.on_event("shutdown")
-async def shutdown():
-    await engine.dispose()
+@app.get("/health", tags=["Health"])
+async def health():
+    return {"status": "ok"}

@@ -12,7 +12,7 @@ from src.config import settings
 # 1. Create async engine
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=True,
+    echo=settings.SQL_ECHO,
     pool_pre_ping=True,
     pool_size=5,
     max_overflow=10,
