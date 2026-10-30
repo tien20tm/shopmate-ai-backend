@@ -1,0 +1,22 @@
+[project]
+name = "shopmate-ai-backend"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "tienmanh", email = "tientm4@vnpay.vn" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "asyncpg>=0.32.0",
+    "fastapi[standard]>=0.162.0",
+    "pydantic-settings>=2.16.2",
+    "sqlalchemy[asyncio]>=2.1.6",
+]
+
+[tool.uv]
+package = false
+
+[tool.fastapi]
+entrypoint = "src.main:app"
+
