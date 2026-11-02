@@ -7,11 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
 from src.database import get_db, engine
-from src.orders.router import order_router
-
+from src.rate_limit import enforce_read_rate_limit
 from src.orders.router import order_router
 from src.products.router import router as products_router
 from src.chat.router import router as chat_router
+from src.knowledge.router import router as knowledge_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -31,12 +31,15 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["Retry-After"],
 )
 app.include_router(chat_router)
 
-app.include_router(order_router)
-app.include_router(order_router)
-app.include_router(products_router)
+read_limit = [Depends(enforce_read_rate_limit)]
+
+app.include_router(order_router, dependencies=read_limit)
+app.include_router(products_router, dependencies=read_limit)
+app.include_router(knowledge_router, dependencies=read_limit)
 
 
 @app.get("/health", tags=["Health"])

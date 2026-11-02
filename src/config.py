@@ -9,6 +9,15 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str
     OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
     OPENAI_CHAT_MODEL: str = "gpt-4.1-mini"
+    CHAT_RATE_LIMIT_REQUESTS: int = 10
+    CHAT_RATE_LIMIT_WINDOW_SECONDS: int = 60
+    CHAT_REQUEST_MAX_AGE_SECONDS: int = 60
+    CHAT_DAILY_LIMIT_TOTAL: int = 500
+    CHAT_DAILY_LIMIT_PER_IP: int = 50
+    CHAT_MAX_OUTPUT_TOKENS: int = 500
+    CHAT_HISTORY_TURNS: int = 6
+    READ_RATE_LIMIT_REQUESTS: int = 120
+    READ_RATE_LIMIT_WINDOW_SECONDS: int = 60
     
     model_config = SettingsConfigDict(
         env_file=".env",

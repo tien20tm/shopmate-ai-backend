@@ -15,6 +15,7 @@ from src.customers import models as customers_models  # noqa: F401
 from src.orders import models as orders_models  # noqa: F401
 from src.products import models as products_models  # noqa: F401
 import src.knowledge.models
+from src.chat import models as chat_models  # noqa: F401
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
