@@ -1,22 +1,20 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 
 class ChatRequest(BaseModel):
-    message: str = Field(min_length=1, max_length=2000)
+    session_id: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-zA-Z0-9_-]+$",
+    )
 
-    @field_validator("message")
-    @classmethod
-    def validate_message(cls, value: str) -> str:
-        value = value.strip()
-
-        if not value:
-            raise ValueError("Message cannot be empty")
-
-        return value
+    message: str = Field(
+        min_length=1,
+        max_length=2000,
+    )
 
 
 class SourceResponse(BaseModel):
-    ref: str
     document_id: str
     title: str
     chunk_index: int
@@ -26,3 +24,4 @@ class SourceResponse(BaseModel):
 class ChatResponse(BaseModel):
     answer: str
     sources: list[SourceResponse]
+    tools_used: list[str]
