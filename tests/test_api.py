@@ -11,9 +11,14 @@ from src.chat.dependencies import (
 )
 from src.chat.quota import QuotaExceeded
 from src.main import app
+from src.notifications.telegram import telegram_notifier
 from src.rate_limit import (
     SlidingWindowRateLimiter,
     read_rate_limiter,
+)
+from src.sessions.router import (
+    session_notice_limiter,
+    session_rate_limiter,
 )
 
 
@@ -26,7 +31,21 @@ ANSWER = {"answer": "Xin chào", "sources": [], "tools_used": []}
 def reset_limits():
     chat_rate_limiter.reset()
     read_rate_limiter.reset()
+    session_rate_limiter.reset()
+    session_notice_limiter.reset()
     chats_in_flight.clear()
+
+
+@pytest.fixture(autouse=True)
+def notifications(monkeypatch):
+    # Captures messages, so tests never reach Telegram even with a real token.
+    sent = []
+
+    def fake_notify(text, low_priority=False):
+        sent.append({"text": text, "low_priority": low_priority})
+
+    monkeypatch.setattr(telegram_notifier, "notify", fake_notify)
+    return sent
 
 
 @pytest.fixture(autouse=True)
@@ -464,3 +483,119 @@ def test_health_is_not_rate_limited(monkeypatch):
     monkeypatch.setattr(read_rate_limiter, "max_requests", 0)
 
     assert client.get("/health").status_code == 200
+
+
+def post_session(payload=None, timestamp=None, checksum=None, headers=None):
+    body = json.dumps(
+        payload if payload is not None else {"path": "/orders"},
+    ).encode("utf-8")
+    timestamp = now_ms() if timestamp is None else timestamp
+
+    return client.post(
+        "/api/v1/session/start",
+        content=body,
+        headers={
+            "Content-Type": "application/json",
+            "X-Request-Timestamp": str(timestamp),
+            "X-Request-Checksum": checksum or sign(body, timestamp),
+            **(headers or {}),
+        },
+    )
+
+
+def test_session_start_sends_one_low_priority_message(notifications):
+    response = post_session(
+        {"path": "/orders", "referrer": "google.com"},
+        headers={
+            "User-Agent": "Mozilla/5.0 (Linux; Android 14) Chrome/130.0 Safari/537",
+        },
+    )
+
+    assert response.status_code == 204
+    assert response.content == b""
+    assert len(notifications) == 1
+
+    message = notifications[0]
+    assert message["low_priority"] is True
+    assert "testclient" not in message["text"]
+    assert "/orders" in message["text"]
+    assert "google.com" in message["text"]
+    assert "Chrome trên Android" in message["text"]
+
+
+def test_session_start_notifies_once_per_interval(notifications):
+    assert post_session().status_code == 204
+    assert post_session().status_code == 204
+    assert post_session().status_code == 204
+
+    assert len(notifications) == 1
+
+
+def test_session_start_requires_valid_checksum(notifications):
+    assert post_session(checksum="0" * 64).status_code == 400
+    assert post_session(timestamp=now_ms() - 120_000).status_code == 400
+    assert notifications == []
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"path": "orders"},
+        {"path": "/a\nGiả mạo tin nhắn"},
+        {"path": "/" + "a" * 200},
+        {"path": "/orders", "referrer": "evil.com/\nGiả mạo"},
+        {"referrer": "google.com"},
+    ],
+)
+def test_session_start_rejects_bad_input(notifications, payload):
+    assert post_session(payload).status_code == 422
+    assert notifications == []
+
+
+def test_session_start_is_rate_limited(notifications):
+    for _ in range(session_rate_limiter.max_requests):
+        assert post_session().status_code == 204
+
+    response = post_session()
+
+    assert response.status_code == 429
+    assert "retry-after" in response.headers
+
+
+def test_chat_success_sends_masked_message(working_chat, notifications):
+    response = post_chat(
+        message="Tôi là An, 0912 345 678, an@example.com, đơn ORD-0002",
+    )
+
+    assert response.status_code == 200
+    assert len(notifications) == 1
+
+    text = notifications[0]["text"]
+    assert notifications[0]["low_priority"] is False
+    assert "testclient" not in text
+    assert "ORD-0002" in text
+    assert "0912" not in text
+    assert "an@example.com" not in text
+    assert "Xin chào" in text
+
+
+def test_chat_failure_sends_failure_message(monkeypatch, notifications):
+    async def failing_chat(**kwargs):
+        raise RuntimeError("secret upstream detail")
+
+    monkeypatch.setattr("src.chat.router.chat", failing_chat)
+
+    assert post_chat().status_code == 503
+    assert len(notifications) == 1
+    assert "Chat lỗi" in notifications[0]["text"]
+    assert "secret" not in notifications[0]["text"]
+
+
+def test_rejected_chats_send_no_message(working_chat, quota, notifications):
+    post_chat(checksum="0" * 64)
+    post_chat(message="")
+
+    quota["result"] = QuotaExceeded.TOTAL
+    post_chat()
+
+    assert notifications == []

@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     CHAT_HISTORY_TURNS: int = 6
     READ_RATE_LIMIT_REQUESTS: int = 120
     READ_RATE_LIMIT_WINDOW_SECONDS: int = 60
+    SESSION_RATE_LIMIT_REQUESTS: int = 10
+    SESSION_RATE_LIMIT_WINDOW_SECONDS: int = 60
+    SESSION_NOTICE_INTERVAL_SECONDS: int = 1800
+    TELEGRAM_BOT_TOKEN: str = ""
+    TELEGRAM_CHAT_ID: str = ""
+    TELEGRAM_API_BASE_URL: str = "https://api.telegram.org"
     
     model_config = SettingsConfigDict(
         env_file=".env",

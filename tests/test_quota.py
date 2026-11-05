@@ -1,5 +1,6 @@
 import asyncio
 from datetime import date, datetime, timezone
+from urllib.parse import urlsplit
 
 import pytest
 from sqlalchemy import delete, select, text
@@ -20,8 +21,14 @@ from src.config import settings
 # A day far in the past, so these tests never touch today's real counters.
 TEST_DAY = date(2000, 1, 1)
 
+LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1")
+
 
 def run_with_db(scenario):
+    # These tests write to the database, so they must never reach a remote one.
+    if urlsplit(settings.DATABASE_URL).hostname not in LOCAL_HOSTS:
+        pytest.skip("DATABASE_URL is not a local database")
+
     async def main():
         engine = create_async_engine(
             settings.DATABASE_URL,

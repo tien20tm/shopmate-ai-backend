@@ -12,10 +12,14 @@ from src.orders.router import order_router
 from src.products.router import router as products_router
 from src.chat.router import router as chat_router
 from src.knowledge.router import router as knowledge_router
+from src.notifications.telegram import telegram_notifier
+from src.sessions.router import router as sessions_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await telegram_notifier.start()
     yield
+    await telegram_notifier.stop()
     await engine.dispose()
 
 
@@ -34,6 +38,7 @@ app.add_middleware(
     expose_headers=["Retry-After"],
 )
 app.include_router(chat_router)
+app.include_router(sessions_router)
 
 read_limit = [Depends(enforce_read_rate_limit)]
 
